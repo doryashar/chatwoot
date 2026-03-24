@@ -4,6 +4,7 @@ import { ref, provide } from 'vue';
 import { useKeyboardEvents } from 'dashboard/composables/useKeyboardEvents';
 import { useLabelSuggestions } from 'dashboard/composables/useLabelSuggestions';
 import { useSnakeCase } from 'dashboard/composables/useTransformKeys';
+import { useAutoScroll } from 'dashboard/composables/useAutoScroll';
 
 // components
 import ReplyBox from './ReplyBox.vue';
@@ -69,12 +70,23 @@ export default {
 
     provide('contextMenuElementTarget', conversationPanelRef);
 
+    const {
+      isFollowingLatest,
+      newMessagesAvailable,
+      onNewMessage: autoScrollOnNewMessage,
+      updateFollowState,
+    } = useAutoScroll(conversationPanelRef, { autoListen: false });
+
     return {
       isPopOutReplyBox,
       captainTasksEnabled,
       getLabelSuggestions,
       isLabelSuggestionFeatureEnabled,
       conversationPanelRef,
+      isFollowingLatest,
+      newMessagesAvailable,
+      autoScrollOnNewMessage,
+      updateFollowState,
     };
   },
   data() {
@@ -334,8 +346,16 @@ export default {
           this.isProgrammaticScroll = true;
           messageElement.scrollIntoView({ behavior: 'smooth' });
           this.fetchPreviousMessages();
+        } else if (this.isFollowingLatest) {
+          this.isProgrammaticScroll = true;
+          this.isFollowingLatest = true;
+          this.newMessagesAvailable = false;
+          this.$nextTick(() => {
+            this.conversationPanel.scrollTop =
+              this.conversationPanel.scrollHeight;
+          });
         } else {
-          this.scrollToBottom();
+          this.newMessagesAvailable = true;
         }
       });
       this.makeMessagesRead();
@@ -352,6 +372,8 @@ export default {
     },
     scrollToBottom() {
       this.isProgrammaticScroll = true;
+      this.isFollowingLatest = true;
+      this.newMessagesAvailable = false;
       let relevantMessages = [];
 
       // label suggestions are not part of the messages list
@@ -421,11 +443,11 @@ export default {
 
     handleScroll(e) {
       if (this.isProgrammaticScroll) {
-        // Reset the flag
         this.isProgrammaticScroll = false;
         this.hasUserScrolled = false;
       } else {
         this.hasUserScrolled = true;
+        this.updateFollowState();
       }
       emitter.emit(BUS_EVENTS.ON_MESSAGE_LIST_SCROLL);
       this.fetchPreviousMessages(e.target.scrollTop);
@@ -433,6 +455,9 @@ export default {
 
     makeMessagesRead() {
       this.$store.dispatch('markMessagesRead', { id: this.currentChat.id });
+    },
+    jumpToBottom() {
+      this.scrollToBottom();
     },
     async handleMessageRetry(message) {
       if (!message) return;
@@ -502,6 +527,20 @@ export default {
           :chat-labels="currentChat.labels"
           :conversation-id="currentChat.id"
         />
+        <transition name="slide-up">
+          <div
+            v-if="!isFollowingLatest && newMessagesAvailable"
+            class="flex justify-center mb-2"
+          >
+            <button
+              class="shadow-lg rounded-full bg-n-brand text-white text-xs font-medium px-3 py-1.5 flex items-center gap-1 hover:bg-n-brand-hover transition-colors"
+              @click="jumpToBottom"
+            >
+              <span class="i-lucide-chevron-down text-sm" />
+              {{ $t('CONVERSATION.SCROLL_TO_BOTTOM') }}
+            </button>
+          </div>
+        </transition>
       </template>
     </MessageList>
     <div
