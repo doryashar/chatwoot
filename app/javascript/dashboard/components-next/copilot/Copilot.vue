@@ -1,8 +1,9 @@
 <script setup>
-import { nextTick, ref, watch, computed } from 'vue';
+import { ref, watch, computed } from 'vue';
 import { useTrack } from 'dashboard/composables';
 import { COPILOT_EVENTS } from 'dashboard/helper/AnalyticsHelper/events';
 import { useUISettings } from 'dashboard/composables/useUISettings';
+import { useAutoScroll } from 'dashboard/composables/useAutoScroll';
 
 import CopilotInput from './CopilotInput.vue';
 import CopilotLoader from './CopilotLoader.vue';
@@ -44,12 +45,12 @@ const sendMessage = message => {
 
 const chatContainer = ref(null);
 
-const scrollToBottom = async () => {
-  await nextTick();
-  if (chatContainer.value) {
-    chatContainer.value.scrollTop = chatContainer.value.scrollHeight;
-  }
-};
+const {
+  isFollowingLatest,
+  newMessagesAvailable,
+  scrollToBottom,
+  onNewMessage,
+} = useAutoScroll(chatContainer);
 
 const groupedMessages = computed(() => {
   const result = [];
@@ -118,7 +119,7 @@ const copilotButtons = computed(() => {
 watch(
   [() => props.messages],
   () => {
-    scrollToBottom();
+    onNewMessage();
   },
   { deep: true }
 );
@@ -162,6 +163,16 @@ watch(
         :has-assistants="hasAssistants"
         @use-suggestion="sendMessage"
       />
+      <transition name="slide-up">
+        <button
+          v-if="!isFollowingLatest && newMessagesAvailable"
+          class="shadow-lg rounded-full bg-n-brand text-white text-xs font-medium px-3 py-1.5 flex items-center gap-1 hover:bg-n-brand-hover transition-colors mx-auto mt-4"
+          @click="scrollToBottom"
+        >
+          <span class="i-lucide-chevron-down text-sm" />
+          {{ t('CONVERSATION.SCROLL_TO_BOTTOM') }}
+        </button>
+      </transition>
     </div>
 
     <div class="mx-3 mt-px mb-2">

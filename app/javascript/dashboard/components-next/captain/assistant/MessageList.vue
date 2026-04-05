@@ -1,8 +1,9 @@
 <script setup>
 import { useI18n } from 'vue-i18n';
-import { ref, watch, nextTick } from 'vue';
+import { ref, watch } from 'vue';
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import { useMessageFormatter } from 'shared/composables/useMessageFormatter';
+import { useAutoScroll } from 'dashboard/composables/useAutoScroll';
 
 const props = defineProps({
   messages: {
@@ -19,6 +20,13 @@ const messageContainer = ref(null);
 
 const { t } = useI18n();
 const { formatMessage } = useMessageFormatter();
+
+const {
+  isFollowingLatest,
+  newMessagesAvailable,
+  scrollToBottom,
+  onNewMessage,
+} = useAutoScroll(messageContainer);
 
 const isUserMessage = sender => sender === 'user';
 
@@ -38,14 +46,7 @@ const getMessageStyle = sender =>
     ? 'bg-n-solid-blue text-n-slate-12 rounded-br-sm rounded-bl-xl rounded-t-xl'
     : 'bg-n-solid-iris text-n-slate-12 rounded-bl-sm rounded-br-xl rounded-t-xl';
 
-const scrollToBottom = async () => {
-  await nextTick();
-  if (messageContainer.value) {
-    messageContainer.value.scrollTop = messageContainer.value.scrollHeight;
-  }
-};
-
-watch(() => props.messages.length, scrollToBottom);
+watch(() => props.messages.length, onNewMessage);
 </script>
 
 <template>
@@ -95,5 +96,15 @@ watch(() => props.messages.length, scrollToBottom);
         </div>
       </div>
     </div>
+    <transition name="slide-up">
+      <button
+        v-if="!isFollowingLatest && newMessagesAvailable"
+        class="shadow-lg rounded-full bg-n-brand text-white text-xs font-medium px-3 py-1.5 flex items-center gap-1 hover:bg-n-brand-hover transition-colors mx-auto"
+        @click="scrollToBottom"
+      >
+        <span class="i-lucide-chevron-down text-sm" />
+        {{ t('CONVERSATION.SCROLL_TO_BOTTOM') }}
+      </button>
+    </transition>
   </div>
 </template>
